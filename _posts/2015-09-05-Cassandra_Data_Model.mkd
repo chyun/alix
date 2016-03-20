@@ -1,0 +1,53 @@
+---
+title: Cassandra数据模型
+description: >
+  Cassandra数据模型
+layout: post
+categories: Cassandra
+---
+
+#关于Cassandra
+Cassandra是一套开源分布式NoSql数据库系统, 采用去中心化设计, 这个不多说, 网上一搜一大把..
+
+##数据模型
+
+###Key(类似于SQL数据库中的主键)
+在Cassandra中, 每一行数据记录是以key/value的形式存储的, 其中key是唯一标识。
+
+###Column(类似于SQL数据库中的列)
+Cassandra中每个key/value对中的value又称为column, 类似于SQL数据库中的列, 但又有不同. SQL数据库中的列只是一个具体的值, 在Cassandra中, 它是一个三元组, 即: name，value和timestamp, 其中name需要是唯一的.具体存储形式如下所示:
+
+```
+   Key                    | Value
+   -----------------------|-----------------------------------------------------
+   key1                   |column=column1, value=value1, timestamp=1270715700201
+
+```
+
+###super column(SQL数据库不支持)
+Cassandra允许key/value中的value是一个map(key/value_list)，即某个column有多个子列。
+
+###Standard Column Family(相对应SQL数据库中的table)
+每个CF由一系列row组成，每个row包含一个key以及其对应的若干column(不是super column)。
+
+![enter image description here][1]
+ 
+
+###Super Column Family(SQL数据库不支持)
+每个SCF由一系列row组成，每个row包含一个key以及其对应的若干super column(不能存储column)。
+
+![enter image description here][2]
+
+###Key Space(对应SQL数据库中的database)
+一个Key Space中可包含若干个CF，如同SQL数据库中一个database可包含多个table。
+
+###Cassandra CLI
+现在最新的cassandra版本提供了CQL, 对所有的操作进行了类似SQL语言的封装, 对习惯SQL的程序员来说降低了入门的成本, 但是这种封装不利于使用者对Cassandra内部存储结构的了解. Cassandra安装目录下bin目录中同时提供了cassandra-cli工具, 提供了更佳接近于存储结构的查询结果. 关于cassandra-cli的具体使用此处不做介绍.
+
+
+###参考资料
+
+http://dongxicheng.org/nosql/cassandra-data-model/
+
+  [1]: https://github.com/chyun/Blog/blob/gh-pages/images/CF.png?raw=true
+  [2]: https://github.com/chyun/Blog/blob/gh-pages/images/SCF.png?raw=true

