@@ -25,16 +25,16 @@
 </div>
 
 <aside>
-	<h2><a href="/">{{ site.name }}</a><a href="/feed.xml" class="feed-link" title="Subscribe"><i class="fa fa-rss-square"></i></a></h2>
+	<h2><a href="{{site.baseurl}}/">{{ site.name }}</a><a href="{{site.baseurl}}/feed.xml" class="feed-link" title="Subscribe"><i class="fa fa-rss-square"></i></a></h2>
 	
 	<nav class="block">
 		<ul>
-		{% for category in site.custom.categories %}<li class="{{ category.name }}"><a href="/category/{{ category.name }}/">{{ category.title }}</a></li>
+		{% for category in site.custom.categories %}<li class="{{ category.name }}"><a href="{{site.baseurl}}/category/{{ category.name }}/">{{ category.title }}</a></li>
 		{% endfor %}
 		</ul>
 	</nav>
 	
-	<form action="/search/" class="block block-search">
+	<form action="{{site.baseurl}}/search/" class="block block-search">
 		<h3>Search</h3>
 		<p><input type="search" name="q" placeholder="Search" /></p>
 	</form>
