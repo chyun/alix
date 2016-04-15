@@ -1,7 +1,7 @@
 baseurl:     /alix
 safe: false
 permalink: /posts/:title.html
-markdown:    rdiscount
+markdown:    kramdown
 rdiscount:   { extensions: [smart] }
 exclude:
   - README.md
