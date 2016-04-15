@@ -1,5 +1,7 @@
 safe: false
 permalink: /posts/:title.html
+markdown:    rdiscount
+rdiscount:   { extensions: [smart] }
 exclude:
   - README.md
 
