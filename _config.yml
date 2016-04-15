@@ -5,31 +5,31 @@ rdiscount:   { extensions: [smart] }
 exclude:
   - README.md
 
-name: alix的技术博客
+name: Calix的技术博客
 host: localhost
 desc: 不会画画的程序员不是好歌手!
 
 custom:
     category:
-        default: Default Category
-        another: Another Category
+        default: 默认分类
+        develop: 日常开发
     categories:
       - name:  default
-        title: Default Category
+        title: 默认分类
 
-      - name:  another
-        title: Another Category
+      - name:  develop
+        title: 日常开发
 
     scrollingLoadCount: 2                          # 滚屏自动加载文章数量，“0”为关闭
 
 meta:
     author:
-        name: Alix
+        name: Calix
         email: chyun.wu@gmail.com
         disqus: your-disqus-short-name              # Disqus缩略标识
         gcse: 000346898720731947188:13h55x32l0y     # Google自定义搜索标识ID
-        github: your-github-account                 # GitHub账号
-        gravatar: 1cd8c12591616d8c22aaa624f8c07834  # Gravatar头像标识
+        github: chyun                 # GitHub账号
+        gravatar: 6d141df40950583e6a1f3e73506a8292  # Gravatar头像标识
 
     disqus: disqus.com/embed.js                     # Disqus评论的JS地址
     gapi: http://www.google.com/jsapi               # Google API地址

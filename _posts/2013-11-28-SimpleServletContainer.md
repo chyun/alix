@@ -3,7 +3,7 @@ title: A Simple Servlet Container
 description: >
   how tomcat works 2 A Simple Servlet Container
 layout: post
-categories: Tomcat Learning
+category: develop
 ---
 
 how tomcat works: 2 A Simple Servlet Container!

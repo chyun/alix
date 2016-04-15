@@ -3,7 +3,7 @@ title: Install Graphite
 description: >
   Install Graphite on ubuntu.
 layout: post
-categories: distribute
+category: default
 ---
 
 在 Ubuntu 12.04 上安装 Graphite 监控工具
