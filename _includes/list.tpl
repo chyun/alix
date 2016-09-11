@@ -1,6 +1,9 @@
 {% include header.tpl %}
 
 {% for post in list %}
+<!--
+<article{% if forloop.index == 1 and preview %} content-loaded="1"{% endif %}>
+-->
 <article>
 	<h2><a href="{{site.baseurl}}{{ post.url }}">{{ post.title }}</a></h2>
 	{% include meta.tpl %}
