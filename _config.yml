@@ -6,9 +6,9 @@ rdiscount:   { extensions: [smart] }
 exclude:
   - README.md
 
-name: Calix的技术博客
+name: Alix的技术博客
 host: localhost
-desc: 不会画画的程序员不是好歌手!
+desc: 不会炒菜的程序员不是好QA!
 
 custom:
     category:
@@ -25,7 +25,7 @@ custom:
 
 meta:
     author:
-        name: Calix
+        name: Alix
         email: chyun.wu@gmail.com
         disqus:     /alix          # Disqus缩略标识
         gcse: 000346898720731947188:13h55x32l0y     # Google自定义搜索标识ID
